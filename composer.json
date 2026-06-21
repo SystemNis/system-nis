@@ -12,6 +12,8 @@
         "php": "^8.4",
         "ext-gd": "*",
         "ext-zip": "*",
+        "ext-bcmath": "*",
+        "ext-mbstring": "*",
         "doctrine/dbal": "*",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
