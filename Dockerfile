@@ -9,7 +9,7 @@
 # sufficient and keeps the image simple to maintain.
 # ════════════════════════════════════════════════════════════════════════
 
-FROM php:8.3-cli-bookworm
+FROM php:8.4-cli-bookworm
 
 # ── System dependencies ─────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
@@ -49,7 +49,7 @@ COPY . .
 
 RUN composer dump-autoload --optimize \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
-               storage/logs bootstrap/cache database \
+        storage/logs bootstrap/cache database \
     && chmod -R 775 storage bootstrap/cache
 
 COPY docker/start.sh /usr/local/bin/start.sh
