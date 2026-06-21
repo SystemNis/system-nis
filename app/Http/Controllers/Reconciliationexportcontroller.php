@@ -16,24 +16,7 @@ use PhpOffice\PhpSpreadsheet\Style\Font as XlFont;
  * ReconciliationExportController
  * ════════════════════════════════
  * Exports the Master Reconciliation Sheet to .xlsx, matching the exact
- * column layout the client specified:
- *
- *   NAME | CLUSTER | BLOCK | HARGA JUAL | KAVLING LIMIT | TOTAL ANGSURAN |
- *   SISA ANGSURAN | PENERIMAAN | SISA PENERIMAAN
- *
- * Field mapping (client terminology → internal DB/accessor):
- *   HARGA JUAL       = units.harga_penjualan
- *   KAVLING LIMIT     = units.kavling_value          (LT × 4,000,000)
- *   TOTAL ANGSURAN    = units.total_penerimaan        (sum of actual_amount paid)
- *   SISA ANGSURAN     = units.sisa_penerimaan         (contract balance remaining)
- *   PENERIMAAN        = units.cumulative_nis_share    ("Total Kavling" in the UI —
- *                        running NIS 30% share actually received, capped)
- *   SISA PENERIMAAN   = units.remaining_kavling_headroom ("Sisa Kavling" in the UI —
- *                        Kavling Limit − Penerimaan)
- *
- * Respects the SAME filters currently active on the Reconciliation page
- * (search, cluster, status, payment type) so "export what I'm looking at"
- * works exactly like the on-screen table.
+ * column layout the client specified.
  */
 class ReconciliationExportController extends Controller
 {
@@ -109,7 +92,7 @@ class ReconciliationExportController extends Controller
 
         $lastRow = $row - 1;
 
-        // ── Number formatting (Rupiah, thousands separator, no decimals) ──
+        // ── Number formatting ────────────────────────────────────────────
         if ($lastRow >= 2) {
             $sheet->getStyle("D2:I{$lastRow}")
                 ->getNumberFormat()
@@ -122,7 +105,7 @@ class ReconciliationExportController extends Controller
                 ],
             ]);
 
-            // Zebra striping for readability
+            // Zebra striping
             for ($r = 2; $r <= $lastRow; $r++) {
                 if ($r % 2 === 0) {
                     $sheet->getStyle("A{$r}:I{$r}")->getFill()
@@ -138,12 +121,9 @@ class ReconciliationExportController extends Controller
             $sheet->getColumnDimension($col)->setWidth($width);
         }
 
-        // Freeze header row
         $sheet->freezePane('A2');
 
-        // ── Stream the file ─────────────────────────────────────────────
         $filename = 'NIS_Reconciliation_' . now()->format('Y-m-d_His') . '.xlsx';
-
         $writer = new Xlsx($spreadsheet);
 
         return response()->streamDownload(function () use ($writer) {
