@@ -225,7 +225,9 @@
                         $paidCount  = $unit->payments->count();
                         $buyer      = $unit->activeBuyer;
                     @endphp
-                    <tr class="hover:bg-slate-50 transition-colors group">
+                    <tr class="hover:bg-slate-50 transition-colors group cursor-pointer"
+                        wire:dblclick="openEditModal({{ $unit->id }})"
+                        title="Double-click to edit">
 
                         {{-- Row number --}}
                         <td class="px-4 py-3 text-slate-400 font-num text-xs">
