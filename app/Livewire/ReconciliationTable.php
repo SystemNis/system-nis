@@ -357,15 +357,21 @@ class ReconciliationTable extends Component
             ->when($this->filterStatus,  fn($q) => $q->where('status', $this->filterStatus))
             ->when($this->filterPayType, fn($q) => $q->where('payment_type', $this->filterPayType))
             ->when($this->search, function ($q) {
-                $s     = '%' . $this->search . '%';
-                // Also strip any dash so "A-1" matches block="A", unit_number="1"
-                // by building a raw concat match portable across SQLite and MySQL.
-                $raw   = trim($this->search);
-                $q->where(function ($inner) use ($s, $raw) {
+                $s   = '%' . $this->search . '%';
+                $raw = trim($this->search);
+
+                // Build a DB-portable concatenated label match (block + '-' + unit_number).
+                // SQLite uses ||, MySQL uses CONCAT() — detect via the driver name.
+                $driver      = \Illuminate\Support\Facades\DB::connection()->getDriverName();
+                $concatExpr  = $driver === 'mysql'
+                    ? "CONCAT(block, '-', unit_number) LIKE ?"
+                    : "(block || '-' || unit_number) LIKE ?";
+
+                $q->where(function ($inner) use ($s, $raw, $concatExpr) {
                     $inner->where('block', 'like', $s)
                           ->orWhere('unit_number', 'like', $s)
                           ->orWhere('house_type', 'like', $s)
-                          ->orWhereRaw("(block || '-' || unit_number) LIKE ?", ["%{$raw}%"])
+                          ->orWhereRaw($concatExpr, ["%{$raw}%"])
                           ->orWhereHas('activeBuyer', fn($b) => $b->where('name', 'like', $s))
                           ->orWhereHas('cluster',     fn($c) => $c->where('name', 'like', $s));
                 });
