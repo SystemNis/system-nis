@@ -141,6 +141,7 @@
         {{-- Export to Excel — plain link (file download), carries current filters --}}
         <a href="{{ route('reconciliation.export', [
                 'search'       => $search ?: null,
+                'tahap'        => $filterTahap ?: null,
                 'cluster'      => $filterCluster ?: null,
                 'status'       => $filterStatus ?: null,
                 'payment_type' => $filterPayType ?: null,

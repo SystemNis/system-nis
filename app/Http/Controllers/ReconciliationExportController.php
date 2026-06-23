@@ -16,22 +16,48 @@ use PhpOffice\PhpSpreadsheet\Style\Font as XlFont;
  * ReconciliationExportController
  * ════════════════════════════════
  * Exports the Master Reconciliation Sheet to .xlsx, matching the exact
- * column layout the client specified.
+ * column layout the client specified:
+ *
+ *   NAME | CLUSTER | BLOCK | HARGA JUAL | KAVLING LIMIT | TOTAL ANGSURAN |
+ *   SISA ANGSURAN | PENERIMAAN | SISA PENERIMAAN
+ *
+ * Field mapping (client terminology → internal DB/accessor):
+ *   HARGA JUAL       = units.harga_penjualan
+ *   KAVLING LIMIT     = units.kavling_value          (LT × 4,000,000)
+ *   TOTAL ANGSURAN    = units.total_penerimaan        (sum of actual_amount paid)
+ *   SISA ANGSURAN     = units.sisa_penerimaan         (contract balance remaining)
+ *   PENERIMAAN        = units.cumulative_nis_share    ("Total Kavling" in the UI —
+ *                        running NIS 30% share actually received, capped)
+ *   SISA PENERIMAAN   = units.remaining_kavling_headroom ("Sisa Kavling" in the UI —
+ *                        Kavling Limit − Penerimaan)
+ *
+ * Respects the SAME filters currently active on the Reconciliation page
+ * (search, cluster, status, payment type) so "export what I'm looking at"
+ * works exactly like the on-screen table.
  */
 class ReconciliationExportController extends Controller
 {
     public function export(Request $request): StreamedResponse
     {
         $units = Unit::with(['cluster', 'activeBuyer'])
+            ->when($request->filled('tahap'), fn ($q) => $q->where('tahap', $request->input('tahap')))
             ->when($request->filled('cluster'), fn ($q) => $q->where('cluster_id', $request->input('cluster')))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('payment_type'), fn ($q) => $q->where('payment_type', $request->input('payment_type')))
             ->when($request->filled('search'), function ($q) use ($request) {
-                $s = '%' . $request->input('search') . '%';
-                $q->where(function ($inner) use ($s) {
+                $s   = '%' . $request->input('search') . '%';
+                $raw = trim($request->input('search'));
+
+                $driver     = \Illuminate\Support\Facades\DB::connection()->getDriverName();
+                $concatExpr = $driver === 'mysql'
+                    ? "CONCAT(block, '-', unit_number) LIKE ?"
+                    : "(block || '-' || unit_number) LIKE ?";
+
+                $q->where(function ($inner) use ($s, $raw, $concatExpr) {
                     $inner->where('block', 'like', $s)
                           ->orWhere('unit_number', 'like', $s)
                           ->orWhere('house_type', 'like', $s)
+                          ->orWhereRaw($concatExpr, ["%{$raw}%"])
                           ->orWhereHas('activeBuyer', fn ($b) => $b->where('name', 'like', $s))
                           ->orWhereHas('cluster', fn ($c) => $c->where('name', 'like', $s));
                 });
@@ -76,12 +102,15 @@ class ReconciliationExportController extends Controller
         $sheet->getRowDimension(1)->setRowHeight(22);
 
         // ── Data rows ────────────────────────────────────────────────────
+        // HARGA JUAL, TOTAL/SISA ANGSURAN, PENERIMAAN columns may be 0 if
+        // the unit's financial plan hasn't been filled in yet (these fields
+        // are now optional at creation, in preparation for bulk import).
         $row = 2;
         foreach ($units as $unit) {
             $sheet->setCellValue("A{$row}", $unit->activeBuyer?->name ?? '');
             $sheet->setCellValue("B{$row}", $unit->cluster?->name ?? '');
             $sheet->setCellValue("C{$row}", $unit->unit_label);
-            $sheet->setCellValue("D{$row}", $unit->harga_penjualan);
+            $sheet->setCellValue("D{$row}", $unit->harga_penjualan ?? 0);
             $sheet->setCellValue("E{$row}", $unit->kavling_value);
             $sheet->setCellValue("F{$row}", $unit->total_penerimaan);
             $sheet->setCellValue("G{$row}", $unit->sisa_penerimaan);
@@ -92,7 +121,7 @@ class ReconciliationExportController extends Controller
 
         $lastRow = $row - 1;
 
-        // ── Number formatting ────────────────────────────────────────────
+        // ── Number formatting (Rupiah, thousands separator, no decimals) ──
         if ($lastRow >= 2) {
             $sheet->getStyle("D2:I{$lastRow}")
                 ->getNumberFormat()
@@ -105,7 +134,7 @@ class ReconciliationExportController extends Controller
                 ],
             ]);
 
-            // Zebra striping
+            // Zebra striping for readability
             for ($r = 2; $r <= $lastRow; $r++) {
                 if ($r % 2 === 0) {
                     $sheet->getStyle("A{$r}:I{$r}")->getFill()
@@ -121,9 +150,20 @@ class ReconciliationExportController extends Controller
             $sheet->getColumnDimension($col)->setWidth($width);
         }
 
+        // Freeze header row
         $sheet->freezePane('A2');
 
-        $filename = 'NIS_Reconciliation_' . now()->format('Y-m-d_His') . '.xlsx';
+        // ── Stream the file ─────────────────────────────────────────────
+        // Build a descriptive filename that reflects active filters
+        $parts = ['NIS_Reconciliation'];
+        if ($request->filled('tahap'))        $parts[] = str_replace(' ', '', $request->input('tahap')); // "Tahap1"
+        if ($request->filled('cluster'))      $parts[] = 'Cluster' . $request->input('cluster');
+        if ($request->filled('status'))       $parts[] = $request->input('status');
+        if ($request->filled('payment_type')) $parts[] = str_replace(' ', '', $request->input('payment_type'));
+        $parts[] = now()->format('Y-m-d');
+
+        $filename = implode('_', $parts) . '.xlsx';
+
         $writer = new Xlsx($spreadsheet);
 
         return response()->streamDownload(function () use ($writer) {
