@@ -76,14 +76,22 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-600">{{ $unit->cluster?->name ?? '—' }}</td>
-                        <td class="px-4 py-3 text-xs text-slate-600">{{ $unit->house_type }}</td>
-                        <td class="px-4 py-3 font-num text-xs text-slate-600">{{ $unit->luas_tanah }}/{{ $unit->luas_bangunan }}</td>
+                        <td class="px-4 py-3 text-xs text-slate-600">{{ $unit->house_type ?? '—' }}</td>
+                        <td class="px-4 py-3 font-num text-xs text-slate-600">{{ $unit->luas_tanah }}/{{ $unit->luas_bangunan ?? '—' }}</td>
                         <td class="px-4 py-3 font-num text-xs text-slate-600">
-                            Rp {{ number_format($unit->harga_penjualan, 0, ',', '.') }}
+                            @if ($unit->harga_penjualan !== null)
+                                Rp {{ number_format($unit->harga_penjualan, 0, ',', '.') }}
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-600">
-                            {{ $unit->payment_type }}
-                            @if($unit->payment_type !== 'Cash Keras')({{ $unit->max_installments }}x)@endif
+                            @if ($unit->payment_type)
+                                {{ $unit->payment_type }}
+                                @if($unit->payment_type !== 'Cash Keras' && $unit->max_installments !== null)({{ $unit->max_installments }}x)@endif
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
                         </td>
                         <td class="px-4 py-3 text-xs text-slate-500">
                             {{ $unit->deleted_at->format('d M Y, H:i') }}

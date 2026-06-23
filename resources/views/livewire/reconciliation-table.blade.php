@@ -22,6 +22,20 @@
 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-4">
     <div class="flex flex-wrap items-end gap-3">
 
+        {{-- Tahap filter — first in the hierarchy: Tahap → Cluster → Unit --}}
+        <div class="min-w-[130px]">
+            <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Tahap</label>
+            <select wire:model.live="filterTahap"
+                    class="w-full py-2 px-3 text-sm border border-slate-200 rounded-lg
+                           focus:outline-none focus:ring-2 focus:ring-[#0F1F3D]/20 focus:border-[#0F1F3D]
+                           bg-white transition-colors">
+                <option value="">All Tahap</option>
+                @foreach ($tahapOptions as $tahap)
+                    <option value="{{ $tahap }}">{{ $tahap }}</option>
+                @endforeach
+            </select>
+        </div>
+
         {{-- Search --}}
         <div class="flex-1 min-w-[200px]">
             <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1">Search</label>
@@ -85,6 +99,45 @@
         {{-- Spacer --}}
         <div class="flex-1"></div>
 
+        {{-- Import from Excel --}}
+        <div x-data="{
+                loading: false,
+                pick() { $refs.importFile.click() },
+                selected(e) {
+                    const f = e.target.files[0];
+                    if (f) { this.loading = true; this.$refs.importForm.submit(); }
+                }
+             }">
+            <form x-ref="importForm"
+                  action="{{ route('reconciliation.import') }}"
+                  method="POST"
+                  enctype="multipart/form-data"
+                  class="hidden">
+                @csrf
+                <input type="file" name="import_file" accept=".xlsx,.xls"
+                       x-ref="importFile" @change="selected($event)">
+            </form>
+            <button @click="pick()" :disabled="loading"
+                    class="flex items-center gap-2 px-4 py-2 bg-white border-2 border-emerald-600
+                           text-emerald-700 hover:bg-emerald-600 hover:text-white
+                           text-sm font-semibold rounded-lg transition-colors whitespace-nowrap
+                           disabled:opacity-60 disabled:cursor-wait">
+                <span x-show="!loading">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                    </svg>
+                </span>
+                <span x-show="loading" x-cloak>
+                    <svg class="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                </span>
+                <span x-text="loading ? 'Importing…' : 'Import Excel'"></span>
+            </button>
+        </div>
+
         {{-- Export to Excel — plain link (file download), carries current filters --}}
         <a href="{{ route('reconciliation.export', [
                 'search'       => $search ?: null,
@@ -114,8 +167,8 @@
     {{-- Result count --}}
     <div class="mt-3 text-xs text-slate-400">
         Showing <span class="font-semibold text-slate-600">{{ $units->total() }}</span> unit(s)
-        @if ($search || $filterCluster || $filterStatus || $filterPayType)
-            — <button wire:click="$set('search',''); $set('filterCluster',''); $set('filterStatus',''); $set('filterPayType','')"
+        @if ($search || $filterTahap || $filterCluster || $filterStatus || $filterPayType)
+            — <button wire:click="$set('search',''); $set('filterTahap',''); $set('filterCluster',''); $set('filterStatus',''); $set('filterPayType','')"
                       class="text-[#0F1F3D] underline hover:no-underline">Clear filters</button>
         @endif
     </div>
@@ -144,6 +197,8 @@
             <thead>
                 <tr class="bg-[#0F1F3D] text-left">
                     <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">#</th>
+                    <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">Tahap</th>
+                    <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">Status</th>
                     <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">Cluster</th>
                     <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">Unit</th>
                     <th class="px-4 py-3 text-[11px] font-semibold text-slate-300 uppercase tracking-widest whitespace-nowrap">Buyer</th>
@@ -176,6 +231,29 @@
                             {{ ($units->currentPage() - 1) * $units->perPage() + $loop->iteration }}
                         </td>
 
+                        {{-- Tahap --}}
+                        <td class="px-4 py-3">
+                            @if ($unit->tahap)
+                                <span class="badge bg-indigo-100 text-indigo-800">{{ $unit->tahap }}</span>
+                            @else
+                                <span class="text-slate-300 text-xs">—</span>
+                            @endif
+                        </td>
+
+                        {{-- Status (duplicate — visible without scrolling) --}}
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            @php
+                                $statusConfig = [
+                                    'active'       => ['bg-emerald-100 text-emerald-800', '● Active'],
+                                    'unpaid'       => ['bg-rose-100 text-rose-700',       '○ Unpaid'],
+                                    'settled'      => ['bg-sky-100 text-sky-700',          '✓ Settled'],
+                                    'land_cleared' => ['bg-amber-100 text-amber-800',      '✦ Land Cleared'],
+                                    'cancelled'    => ['bg-slate-100 text-slate-500',      '✕ Cancelled'],
+                                ][$unit->status] ?? ['bg-slate-100 text-slate-600', $unit->status];
+                            @endphp
+                            <span class="badge {{ $statusConfig[0] }}">{{ $statusConfig[1] }}</span>
+                        </td>
+
                         {{-- Cluster --}}
                         <td class="px-4 py-3">
                             <span class="font-semibold text-[#0F1F3D] text-xs tracking-wide">
@@ -201,21 +279,31 @@
                         </td>
 
                         {{-- House type --}}
-                        <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{{ $unit->house_type }}</td>
+                        <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                            {{ $unit->house_type ?? '—' }}
+                        </td>
 
                         {{-- LB / LT --}}
                         <td class="px-4 py-3 font-num text-xs text-slate-700 whitespace-nowrap">
-                            {{ $unit->luas_bangunan }}<span class="text-slate-400">/</span>{{ $unit->luas_tanah }}
+                            {{ $unit->luas_bangunan ?? '—' }}<span class="text-slate-400">/</span>{{ $unit->luas_tanah }}
                         </td>
 
                         {{-- Harga Penjualan --}}
                         <td class="px-4 py-3 font-num text-xs text-slate-700 whitespace-nowrap">
-                            Rp {{ number_format($unit->harga_penjualan, 0, ',', '.') }}
+                            @if ($unit->harga_penjualan !== null)
+                                Rp {{ number_format($unit->harga_penjualan, 0, ',', '.') }}
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
                         </td>
 
                         {{-- Down Payment --}}
                         <td class="px-4 py-3 font-num text-xs text-slate-700 whitespace-nowrap">
-                            Rp {{ number_format($unit->down_payment, 0, ',', '.') }}
+                            @if ($unit->down_payment !== null)
+                                Rp {{ number_format($unit->down_payment, 0, ',', '.') }}
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
                         </td>
 
                         {{-- Kavling Cap --}}
@@ -227,25 +315,33 @@
 
                         {{-- Angsuran / Bulan --}}
                         <td class="px-4 py-3 font-num text-xs text-slate-700 whitespace-nowrap">
-                            Rp {{ number_format($unit->angsuran_per_bulan, 0, ',', '.') }}
+                            @if ($unit->angsuran_per_bulan !== null)
+                                Rp {{ number_format($unit->angsuran_per_bulan, 0, ',', '.') }}
+                            @else
+                                <span class="text-slate-300">—</span>
+                            @endif
                         </td>
 
                         {{-- Payment Type --}}
                         <td class="px-4 py-3 whitespace-nowrap">
-                            @php
-                                $ptColor = match($unit->payment_type) {
-                                    'Cash Keras'    => 'bg-emerald-100 text-emerald-800',
-                                    'Cash Bertahap' => 'bg-blue-100 text-blue-800',
-                                    'KPR'           => 'bg-purple-100 text-purple-800',
-                                    default         => 'bg-slate-100 text-slate-600',
-                                };
-                            @endphp
-                            <span class="badge {{ $ptColor }}">
-                                {{ $unit->payment_type }}
-                                @if($unit->payment_type !== 'Cash Keras')
+                            @if ($unit->payment_type)
+                                @php
+                                    $ptColor = match($unit->payment_type) {
+                                        'Cash Keras'    => 'bg-emerald-100 text-emerald-800',
+                                        'Cash Bertahap' => 'bg-blue-100 text-blue-800',
+                                        'KPR'           => 'bg-purple-100 text-purple-800',
+                                        default         => 'bg-slate-100 text-slate-600',
+                                    };
+                                @endphp
+                                <span class="badge {{ $ptColor }}">
+                                    {{ $unit->payment_type }}
+                                    @if($unit->payment_type !== 'Cash Keras' && $unit->max_installments !== null)
                                     ({{ $unit->max_installments }}x)
                                 @endif
                             </span>
+                            @else
+                                <span class="text-slate-300 text-xs">—</span>
+                            @endif
                         </td>
 
                         {{-- Installments paid --}}
@@ -253,7 +349,7 @@
                             <span class="{{ $paidCount > 0 ? 'text-emerald-700 font-semibold' : 'text-slate-400' }}">
                                 {{ $paidCount }}
                             </span>
-                            <span class="text-slate-300">/{{ $unit->max_installments }}</span>
+                            <span class="text-slate-300">/{{ $unit->max_installments ?? '—' }}</span>
                         </td>
 
                         {{-- Land (Kavling) Progress --}}
@@ -309,13 +405,13 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="15" class="px-4 py-16 text-center">
+                        <td colspan="17" class="px-4 py-16 text-center">
                             <div class="text-slate-300 text-4xl mb-3">🏠</div>
                             <p class="text-slate-500 font-medium">No units found</p>
                             <p class="text-slate-400 text-sm mt-1">
-                                @if ($search || $filterCluster || $filterStatus || $filterPayType)
+                                @if ($search || $filterTahap || $filterCluster || $filterStatus || $filterPayType)
                                     Try adjusting your filters, or
-                                    <button wire:click="$set('search',''); $set('filterCluster',''); $set('filterStatus',''); $set('filterPayType','')"
+                                    <button wire:click="$set('search',''); $set('filterTahap',''); $set('filterCluster',''); $set('filterStatus',''); $set('filterPayType','')"
                                             class="text-[#0F1F3D] underline">clear all filters</button>
                                 @else
                                     Click <strong>Add New House</strong> to register the first unit.
@@ -366,6 +462,14 @@
                 <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Unit Identity</h3>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     @include('livewire.partials.form-field', [
+                        'label'       => 'Tahap (opt.)',
+                        'errorKey'    => 'add_tahap',
+                        'inputHtml'   => '<select wire:model="add_tahap" class="form-input">
+                            <option value="">No tahap…</option>
+                            ' . collect($tahapOptions)->map(fn($t) => '<option value="'.$t.'">'.$t.'</option>')->implode('') . '
+                        </select>',
+                    ])
+                    @include('livewire.partials.form-field', [
                         'label'       => 'Cluster',
                         'errorKey'    => 'add_cluster_id',
                         'inputHtml'   => '<select wire:model="add_cluster_id" class="form-input">
@@ -373,12 +477,15 @@
                             ' . $clusters->map(fn($c) => '<option value="'.$c->id.'">'.$c->name.'</option>')->implode('') . '
                         </select>',
                     ])
-                    @include('livewire.partials.form-field', ['label'=>'Block',       'errorKey'=>'add_block',       'inputHtml'=>'<input wire:model="add_block" type="text" placeholder="A" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'Unit No.',    'errorKey'=>'add_unit_number', 'inputHtml'=>'<input wire:model="add_unit_number" type="text" placeholder="01" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'House Type',  'errorKey'=>'add_house_type',  'inputHtml'=>'<input wire:model="add_house_type" type="text" placeholder="STANDARD" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'LB (m²)',     'errorKey'=>'add_luas_bangunan','inputHtml'=>'<input wire:model="add_luas_bangunan" type="number" min="1" placeholder="20" class="form-input font-num">'])
-                    @include('livewire.partials.form-field', ['label'=>'LT (m²)',     'errorKey'=>'add_luas_tanah',  'inputHtml'=>'<input wire:model="add_luas_tanah" type="number" min="1" placeholder="75" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'Block',           'errorKey'=>'add_block',        'inputHtml'=>'<input wire:model="add_block" type="text" placeholder="A" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'Unit No.',        'errorKey'=>'add_unit_number',  'inputHtml'=>'<input wire:model="add_unit_number" type="text" placeholder="01" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'House Type (opt.)','errorKey'=>'add_house_type',  'inputHtml'=>'<input wire:model="add_house_type" type="text" placeholder="STANDARD" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'LB (opt., m²)',   'errorKey'=>'add_luas_bangunan','inputHtml'=>'<input wire:model="add_luas_bangunan" type="number" min="1" placeholder="20" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'LT (m²)',         'errorKey'=>'add_luas_tanah',   'inputHtml'=>'<input wire:model="add_luas_tanah" type="number" min="1" placeholder="75" class="form-input font-num">'])
                 </div>
+                <p class="text-[10px] text-slate-400 mt-2">
+                    Only <strong>Cluster, Block, Unit No., and LT</strong> are required. Everything else can be filled in later.
+                </p>
             </div>
 
             {{-- Kavling preview --}}
@@ -397,11 +504,12 @@
 
             {{-- Section: Financial --}}
             <div>
-                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Financial Terms</h3>
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Financial Terms (all optional)</h3>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="col-span-2">
-                        @include('livewire.partials.form-field', ['label'=>'Payment Type', 'errorKey'=>'add_payment_type', 'inputHtml'=>'
+                        @include('livewire.partials.form-field', ['label'=>'Payment Type (opt.)', 'errorKey'=>'add_payment_type', 'inputHtml'=>'
                             <select wire:model="add_payment_type" class="form-input">
+                                <option value="">Not set yet…</option>
                                 <option value="Cash Keras">Cash Keras</option>
                                 <option value="Cash Bertahap">Cash Bertahap</option>
                                 <option value="KPR">KPR</option>
@@ -410,7 +518,7 @@
                     <div>
                         @include('livewire.partials.money-input', [
                             'wireModel'   => 'add_harga_penjualan',
-                            'label'       => 'Harga Penjualan (Rp)',
+                            'label'       => 'Harga Penjualan (opt., Rp)',
                             'placeholder' => '1000000000',
                             'live'        => true,
                         ])
@@ -418,12 +526,12 @@
                     <div>
                         @include('livewire.partials.money-input', [
                             'wireModel'   => 'add_down_payment',
-                            'label'       => 'Down Payment (Rp)',
+                            'label'       => 'Down Payment (opt., Rp)',
                             'placeholder' => '50000000',
                             'live'        => true,
                         ])
                     </div>
-                    @include('livewire.partials.form-field', ['label'=>'Max Installments',     'errorKey'=>'add_max_installments','inputHtml'=>'<input wire:model="add_max_installments" type="number" min="1" max="360" placeholder="10" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'Max Installments (opt.)', 'errorKey'=>'add_max_installments','inputHtml'=>'<input wire:model="add_max_installments" type="number" min="1" max="360" placeholder="10" class="form-input font-num">'])
                     @include('livewire.partials.form-field', ['label'=>'Initial Status',       'errorKey'=>'add_status',          'inputHtml'=>'
                         <select wire:model="add_status" class="form-input">
                             <option value="unpaid">Unpaid</option>
@@ -512,27 +620,36 @@
                 <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Unit Identity</h3>
                 <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     @include('livewire.partials.form-field', [
+                        'label'     => 'Tahap (opt.)',
+                        'errorKey'  => 'edit_tahap',
+                        'inputHtml' => '<select wire:model="edit_tahap" class="form-input">
+                            <option value="">No tahap…</option>
+                            ' . collect($tahapOptions)->map(fn($t) => '<option value="'.$t.'">'.$t.'</option>')->implode('') . '
+                        </select>',
+                    ])
+                    @include('livewire.partials.form-field', [
                         'label'     => 'Cluster',
                         'errorKey'  => 'edit_cluster_id',
                         'inputHtml' => '<select wire:model="edit_cluster_id" class="form-input">
                             ' . $clusters->map(fn($c) => '<option value="'.$c->id.'">'.$c->name.'</option>')->implode('') . '
                         </select>',
                     ])
-                    @include('livewire.partials.form-field', ['label'=>'Block',      'errorKey'=>'edit_block',       'inputHtml'=>'<input wire:model="edit_block" type="text" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'Unit No.',   'errorKey'=>'edit_unit_number', 'inputHtml'=>'<input wire:model="edit_unit_number" type="text" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'House Type', 'errorKey'=>'edit_house_type',  'inputHtml'=>'<input wire:model="edit_house_type" type="text" class="form-input">'])
-                    @include('livewire.partials.form-field', ['label'=>'LB (m²)',    'errorKey'=>'edit_luas_bangunan','inputHtml'=>'<input wire:model="edit_luas_bangunan" type="number" min="1" class="form-input font-num">'])
-                    @include('livewire.partials.form-field', ['label'=>'LT (m²)',    'errorKey'=>'edit_luas_tanah',  'inputHtml'=>'<input wire:model="edit_luas_tanah" type="number" min="1" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'Block',            'errorKey'=>'edit_block',        'inputHtml'=>'<input wire:model="edit_block" type="text" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'Unit No.',         'errorKey'=>'edit_unit_number',  'inputHtml'=>'<input wire:model="edit_unit_number" type="text" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'House Type (opt.)','errorKey'=>'edit_house_type',   'inputHtml'=>'<input wire:model="edit_house_type" type="text" class="form-input">'])
+                    @include('livewire.partials.form-field', ['label'=>'LB (opt., m²)',    'errorKey'=>'edit_luas_bangunan','inputHtml'=>'<input wire:model="edit_luas_bangunan" type="number" min="1" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'LT (m²)',          'errorKey'=>'edit_luas_tanah',   'inputHtml'=>'<input wire:model="edit_luas_tanah" type="number" min="1" class="form-input font-num">'])
                 </div>
             </div>
 
             {{-- Financial --}}
             <div>
-                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Financial Terms</h3>
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3">Financial Terms (all optional)</h3>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="col-span-2">
-                        @include('livewire.partials.form-field', ['label'=>'Payment Type', 'errorKey'=>'edit_payment_type', 'inputHtml'=>'
+                        @include('livewire.partials.form-field', ['label'=>'Payment Type (opt.)', 'errorKey'=>'edit_payment_type', 'inputHtml'=>'
                             <select wire:model="edit_payment_type" class="form-input">
+                                <option value="">Not set yet…</option>
                                 <option value="Cash Keras">Cash Keras</option>
                                 <option value="Cash Bertahap">Cash Bertahap</option>
                                 <option value="KPR">KPR</option>
@@ -541,16 +658,16 @@
                     <div>
                         @include('livewire.partials.money-input', [
                             'wireModel' => 'edit_harga_penjualan',
-                            'label'     => 'Harga Penjualan (Rp)',
+                            'label'     => 'Harga Penjualan (opt., Rp)',
                         ])
                     </div>
                     <div>
                         @include('livewire.partials.money-input', [
                             'wireModel' => 'edit_down_payment',
-                            'label'     => 'Down Payment (Rp)',
+                            'label'     => 'Down Payment (opt., Rp)',
                         ])
                     </div>
-                    @include('livewire.partials.form-field', ['label'=>'Max Installments',     'errorKey'=>'edit_max_installments','inputHtml'=>'<input wire:model="edit_max_installments" type="number" min="1" max="360" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'Max Installments (opt.)', 'errorKey'=>'edit_max_installments','inputHtml'=>'<input wire:model="edit_max_installments" type="number" min="1" max="360" class="form-input font-num">'])
                     @include('livewire.partials.form-field', ['label'=>'Status',               'errorKey'=>'edit_status',          'inputHtml'=>'
                         <select wire:model="edit_status" class="form-input">
                             <option value="active">Active</option>

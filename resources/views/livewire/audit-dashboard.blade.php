@@ -357,10 +357,18 @@
 
             <div class="px-6 py-5">
                 {{-- Identity --}}
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-3 mb-5">
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-x-8 gap-y-3 mb-5">
+                    <div>
+                        <p class="label-xs">TAHAP</p>
+                        @if ($summary->unit->tahap)
+                            <p class="font-bold text-indigo-700 text-sm mt-0.5">{{ $summary->unit->tahap }}</p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">—</p>
+                        @endif
+                    </div>
                     <div><p class="label-xs">NAME</p><p class="font-bold text-slate-900 text-sm mt-0.5">{{ $summary->unit->activeBuyer?->name ?? '—' }}</p></div>
-                    <div><p class="label-xs">TIPE</p><p class="font-bold text-slate-900 text-sm mt-0.5">{{ $summary->unit->house_type }}</p></div>
-                    <div><p class="label-xs">LB</p><p class="font-bold text-slate-900 text-sm font-num mt-0.5">{{ $summary->unit->luas_bangunan }} m²</p></div>
+                    <div><p class="label-xs">TIPE</p><p class="font-bold text-slate-900 text-sm mt-0.5">{{ $summary->unit->house_type ?? '—' }}</p></div>
+                    <div><p class="label-xs">LB</p><p class="font-bold text-slate-900 text-sm font-num mt-0.5">{{ $summary->unit->luas_bangunan !== null ? $summary->unit->luas_bangunan.' m²' : '—' }}</p></div>
                     <div><p class="label-xs">LT</p><p class="font-bold text-slate-900 text-sm font-num mt-0.5">{{ $summary->unit->luas_tanah }} m²</p></div>
                 </div>
 
@@ -370,18 +378,30 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
                     <div>
                         <p class="label-xs">Harga Penjualan</p>
-                        <p class="val-num">Rp {{ number_format($summary->unit->harga_penjualan, 0, ',', '.') }}</p>
+                        @if ($summary->unit->harga_penjualan !== null)
+                            <p class="val-num">Rp {{ number_format($summary->unit->harga_penjualan, 0, ',', '.') }}</p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">Not set yet</p>
+                        @endif
                     </div>
                     <div>
                         <p class="label-xs">Pembayaran</p>
-                        <p class="font-semibold text-slate-800 text-sm mt-0.5">
-                            {{ $summary->unit->payment_type }}
-                            @if ($summary->unit->payment_type !== 'Cash Keras')({{ $summary->unit->max_installments }}x)@endif
-                        </p>
+                        @if ($summary->unit->payment_type)
+                            <p class="font-semibold text-slate-800 text-sm mt-0.5">
+                                {{ $summary->unit->payment_type }}
+                                @if ($summary->unit->payment_type !== 'Cash Keras' && $summary->unit->max_installments !== null)({{ $summary->unit->max_installments }}x)@endif
+                            </p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">Not set yet</p>
+                        @endif
                     </div>
                     <div>
                         <p class="label-xs">Down Payment</p>
-                        <p class="val-num">Rp {{ number_format($summary->unit->down_payment, 0, ',', '.') }}</p>
+                        @if ($summary->unit->down_payment !== null)
+                            <p class="val-num">Rp {{ number_format($summary->unit->down_payment, 0, ',', '.') }}</p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">—</p>
+                        @endif
                     </div>
                     <div>
                         <p class="label-xs">Kavling Cap</p>
@@ -426,7 +446,11 @@
                     </div>
                     <div>
                         <p class="label-xs">Angsuran Per Bulan</p>
-                        <p class="val-num">Rp {{ number_format($summary->unit->angsuran_per_bulan, 0, ',', '.') }}</p>
+                        @if ($summary->unit->angsuran_per_bulan !== null)
+                            <p class="val-num">Rp {{ number_format($summary->unit->angsuran_per_bulan, 0, ',', '.') }}</p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">Not set yet</p>
+                        @endif
                     </div>
                     <div>
                         <p class="label-xs">Penerimaan Per Bulan</p>
@@ -456,7 +480,7 @@
                     @if ($summary->hasOverflowError)
                         <span class="badge bg-red-100 text-red-800">🚨 Ceiling Overflow Error</span>
                     @endif
-                    <span class="badge bg-slate-100 text-slate-600">{{ $summary->paidCount }}/{{ $summary->unit->max_installments }} paid</span>
+                    <span class="badge bg-slate-100 text-slate-600">{{ $summary->paidCount }}/{{ $summary->unit->max_installments ?? '—' }} paid</span>
                 </div>
                 @endif
             </div>

@@ -13,6 +13,8 @@ class ReconciliationTable extends Component
     use WithPagination;
 
     // ── Filter State ───────────────────────────────────────────────────────
+    // Tahap sits first in the filter hierarchy: Tahap → Cluster → Unit.
+    public string $filterTahap   = '';
     public string $search        = '';
     public string $filterCluster = '';
     public string $filterStatus  = '';
@@ -22,38 +24,44 @@ class ReconciliationTable extends Component
     public bool $showAddModal = false;
 
     // Add form fields
-    public string $add_cluster_id      = '';
-    public string $add_block           = '';
-    public string $add_unit_number     = '';
-    public string $add_house_type      = '';
-    public string $add_luas_bangunan   = '';
-    public string $add_luas_tanah      = '';
-    public string $add_payment_type    = 'Cash Bertahap';
-    public string $add_harga_penjualan = '';
-    public string $add_down_payment    = '0';
-    public string $add_max_installments= '';
-    public string $add_buyer_name      = '';
-    public string $add_contract_date   = '';
-    public string $add_status          = 'unpaid';
-    public string $add_notes           = '';
+    // Only cluster, block, unit_number, luas_tanah are HARD REQUIRED below.
+    // Everything else (tahap included) is optional and stored as null/empty
+    // if left blank — this matches Unit::REQUIRED_FIELDS and prepares the
+    // schema for the upcoming bulk-import feature.
+    public string $add_tahap            = '';
+    public string $add_cluster_id       = '';
+    public string $add_block            = '';
+    public string $add_unit_number      = '';
+    public string $add_house_type       = '';
+    public string $add_luas_bangunan    = '';
+    public string $add_luas_tanah       = '';
+    public string $add_payment_type     = '';
+    public string $add_harga_penjualan  = '';
+    public string $add_down_payment     = '';
+    public string $add_max_installments = '';
+    public string $add_buyer_name       = '';
+    public string $add_contract_date    = '';
+    public string $add_status           = 'unpaid';
+    public string $add_notes            = '';
 
     // ── Edit Modal ─────────────────────────────────────────────────────────
     public bool  $showEditModal = false;
     public ?int  $editingUnitId = null;
 
     // Edit form mirrors add form fields
-    public string $edit_cluster_id      = '';
-    public string $edit_block           = '';
-    public string $edit_unit_number     = '';
-    public string $edit_house_type      = '';
-    public string $edit_luas_bangunan   = '';
-    public string $edit_luas_tanah      = '';
-    public string $edit_payment_type    = '';
-    public string $edit_harga_penjualan = '';
-    public string $edit_down_payment    = '';
-    public string $edit_max_installments= '';
-    public string $edit_status          = '';
-    public string $edit_notes           = '';
+    public string $edit_tahap            = '';
+    public string $edit_cluster_id       = '';
+    public string $edit_block            = '';
+    public string $edit_unit_number      = '';
+    public string $edit_house_type       = '';
+    public string $edit_luas_bangunan    = '';
+    public string $edit_luas_tanah       = '';
+    public string $edit_payment_type     = '';
+    public string $edit_harga_penjualan  = '';
+    public string $edit_down_payment     = '';
+    public string $edit_max_installments = '';
+    public string $edit_status           = '';
+    public string $edit_notes            = '';
     // Buyer edit
     public ?int   $edit_buyer_id        = null;
     public string $edit_buyer_name      = '';
@@ -68,6 +76,7 @@ class ReconciliationTable extends Component
 
     protected $queryString = [
         'search'        => ['except' => ''],
+        'filterTahap'   => ['except' => ''],
         'filterCluster' => ['except' => ''],
         'filterStatus'  => ['except' => ''],
         'filterPayType' => ['except' => ''],
@@ -78,6 +87,7 @@ class ReconciliationTable extends Component
         $this->resetPage();
     }
 
+    public function updatingFilterTahap(): void   { $this->resetPage(); }
     public function updatingFilterCluster(): void { $this->resetPage(); }
     public function updatingFilterStatus(): void  { $this->resetPage(); }
     public function updatingFilterPayType(): void { $this->resetPage(); }
@@ -99,57 +109,75 @@ class ReconciliationTable extends Component
 
     public function saveNewUnit(): void
     {
+        // Only the four hard-identity fields are required. Everything else
+        // is validated as `nullable` so the form can be submitted with just
+        // the bare minimum — matching Unit::REQUIRED_FIELDS and preparing
+        // for partial/bulk-imported records.
         $validated = $this->validate([
-            'add_cluster_id'       => 'required|exists:clusters,id',
-            'add_block'            => 'required|string|max:10',
-            'add_unit_number'      => 'required|string|max:10',
-            'add_house_type'       => 'required|string|max:50',
-            'add_luas_bangunan'    => 'required|integer|min:1',
-            'add_luas_tanah'       => 'required|integer|min:1',
-            'add_payment_type'     => 'required|in:Cash Keras,KPR,Cash Bertahap',
-            'add_harga_penjualan'  => 'required|integer|min:1',
-            'add_down_payment'     => 'required|integer|min:0',
-            'add_max_installments' => 'required|integer|min:1|max:360',
-            'add_buyer_name'       => 'nullable|string|max:255',
-            'add_contract_date'    => 'nullable|date',
-            'add_status'           => 'required|in:active,settled,land_cleared,unpaid,cancelled',
-            'add_notes'            => 'nullable|string',
+            'add_tahap'             => 'nullable|in:' . implode(',', Unit::TAHAP_OPTIONS),
+            'add_cluster_id'        => 'required|exists:clusters,id',
+            'add_block'             => 'required|string|max:10',
+            'add_unit_number'       => 'required|string|max:10',
+            'add_house_type'        => 'nullable|string|max:50',
+            'add_luas_bangunan'     => 'nullable|integer|min:1',
+            'add_luas_tanah'        => 'required|integer|min:1',
+            'add_payment_type'      => 'nullable|in:Cash Keras,KPR,Cash Bertahap',
+            'add_harga_penjualan'   => 'nullable|integer|min:1',
+            'add_down_payment'      => 'nullable|integer|min:0',
+            'add_max_installments'  => 'nullable|integer|min:1|max:360',
+            'add_buyer_name'        => 'nullable|string|max:255',
+            'add_contract_date'     => 'nullable|date',
+            'add_status'            => 'required|in:active,settled,land_cleared,unpaid,cancelled',
+            'add_notes'             => 'nullable|string',
         ], [], [
-            'add_cluster_id'       => 'Cluster',
-            'add_block'            => 'Block',
-            'add_unit_number'      => 'Unit Number',
-            'add_house_type'       => 'House Type',
-            'add_luas_bangunan'    => 'Luas Bangunan',
-            'add_luas_tanah'       => 'Luas Tanah',
-            'add_payment_type'     => 'Payment Type',
-            'add_harga_penjualan'  => 'Harga Penjualan',
-            'add_down_payment'     => 'Down Payment',
-            'add_max_installments' => 'Max Installments',
-            'add_buyer_name'       => 'Buyer Name',
-            'add_contract_date'    => 'Contract Date',
+            'add_tahap'             => 'Tahap',
+            'add_cluster_id'        => 'Cluster',
+            'add_block'             => 'Block',
+            'add_unit_number'       => 'Unit Number',
+            'add_house_type'        => 'House Type',
+            'add_luas_bangunan'     => 'Luas Bangunan',
+            'add_luas_tanah'        => 'Luas Tanah',
+            'add_payment_type'      => 'Payment Type',
+            'add_harga_penjualan'   => 'Harga Penjualan',
+            'add_down_payment'      => 'Down Payment',
+            'add_max_installments'  => 'Max Installments',
+            'add_buyer_name'        => 'Buyer Name',
+            'add_contract_date'     => 'Contract Date',
         ]);
 
-        $angsuran = $this->calcInstallment(
-            (int) $validated['add_harga_penjualan'],
-            (int) $validated['add_down_payment'],
-            (int) $validated['add_max_installments'],
+        // angsuran_per_bulan only computable if BOTH harga_penjualan and
+        // max_installments were actually provided — otherwise leave null.
+        $angsuran = $this->calcInstallmentOrNull(
+            $validated['add_harga_penjualan']  !== null ? (int) $validated['add_harga_penjualan']  : null,
+            $validated['add_down_payment']     !== null ? (int) $validated['add_down_payment']     : 0,
+            $validated['add_max_installments'] !== null ? (int) $validated['add_max_installments'] : null,
         );
 
-        $unit = Unit::create([
-            'cluster_id'         => $validated['add_cluster_id'],
-            'block'              => strtoupper(trim($validated['add_block'])),
-            'unit_number'        => trim($validated['add_unit_number']),
-            'house_type'         => strtoupper(trim($validated['add_house_type'])),
-            'luas_bangunan'      => (int) $validated['add_luas_bangunan'],
-            'luas_tanah'         => (int) $validated['add_luas_tanah'],
-            'payment_type'       => $validated['add_payment_type'],
-            'harga_penjualan'    => (int) $validated['add_harga_penjualan'],
-            'down_payment'       => (int) $validated['add_down_payment'],
-            'angsuran_per_bulan' => $angsuran,
-            'max_installments'   => (int) $validated['add_max_installments'],
-            'status'             => $validated['add_status'],
-            'notes'              => $validated['add_notes'] ?: null,
-        ]);
+        try {
+            $unit = Unit::create([
+                'tahap'              => $validated['add_tahap'] ?: null,
+                'cluster_id'         => $validated['add_cluster_id'],
+                'block'              => strtoupper(trim($validated['add_block'])),
+                'unit_number'        => trim($validated['add_unit_number']),
+                'house_type'         => $validated['add_house_type'] ? strtoupper(trim($validated['add_house_type'])) : null,
+                'luas_bangunan'      => $validated['add_luas_bangunan'] !== null ? (int) $validated['add_luas_bangunan'] : null,
+                'luas_tanah'         => (int) $validated['add_luas_tanah'],
+                'payment_type'       => $validated['add_payment_type'] ?: null,
+                'harga_penjualan'    => $validated['add_harga_penjualan']  !== null ? (int) $validated['add_harga_penjualan']  : null,
+                'down_payment'       => $validated['add_down_payment']     !== null ? (int) $validated['add_down_payment']     : null,
+                'angsuran_per_bulan' => $angsuran,
+                'max_installments'   => $validated['add_max_installments'] !== null ? (int) $validated['add_max_installments'] : null,
+                'status'             => $validated['add_status'],
+                'notes'              => $validated['add_notes'] ?: null,
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            $block  = strtoupper(trim($validated['add_block']));
+            $unitNo = trim($validated['add_unit_number']);
+            $this->addError('add_unit_number',
+                "Unit {$block}-{$unitNo} already exists in this cluster. Choose a different block or unit number."
+            );
+            return;
+        }
 
         if (!empty($validated['add_buyer_name'])) {
             Buyer::create([
@@ -174,16 +202,17 @@ class ReconciliationTable extends Component
         $unit = Unit::with('activeBuyer')->findOrFail($unitId);
 
         $this->editingUnitId         = $unit->id;
+        $this->edit_tahap            = $unit->tahap ?? '';
         $this->edit_cluster_id       = (string) $unit->cluster_id;
         $this->edit_block            = $unit->block;
         $this->edit_unit_number      = $unit->unit_number;
-        $this->edit_house_type       = $unit->house_type;
-        $this->edit_luas_bangunan    = (string) $unit->luas_bangunan;
+        $this->edit_house_type       = $unit->house_type ?? '';
+        $this->edit_luas_bangunan    = $unit->luas_bangunan !== null ? (string) $unit->luas_bangunan : '';
         $this->edit_luas_tanah       = (string) $unit->luas_tanah;
-        $this->edit_payment_type     = $unit->payment_type;
-        $this->edit_harga_penjualan  = (string) $unit->harga_penjualan;
-        $this->edit_down_payment     = (string) $unit->down_payment;
-        $this->edit_max_installments = (string) $unit->max_installments;
+        $this->edit_payment_type     = $unit->payment_type ?? '';
+        $this->edit_harga_penjualan  = $unit->harga_penjualan !== null ? (string) $unit->harga_penjualan : '';
+        $this->edit_down_payment     = $unit->down_payment !== null ? (string) $unit->down_payment : '';
+        $this->edit_max_installments = $unit->max_installments !== null ? (string) $unit->max_installments : '';
         $this->edit_status           = $unit->status;
         $this->edit_notes            = $unit->notes ?? '';
 
@@ -212,53 +241,56 @@ class ReconciliationTable extends Component
     public function saveEdit(): void
     {
         $validated = $this->validate([
-            'edit_cluster_id'       => 'required|exists:clusters,id',
-            'edit_block'            => 'required|string|max:10',
-            'edit_unit_number'      => 'required|string|max:10',
-            'edit_house_type'       => 'required|string|max:50',
-            'edit_luas_bangunan'    => 'required|integer|min:1',
-            'edit_luas_tanah'       => 'required|integer|min:1',
-            'edit_payment_type'     => 'required|in:Cash Keras,KPR,Cash Bertahap',
-            'edit_harga_penjualan'  => 'required|integer|min:1',
-            'edit_down_payment'     => 'required|integer|min:0',
-            'edit_max_installments' => 'required|integer|min:1|max:360',
-            'edit_status'           => 'required|in:active,settled,land_cleared,unpaid,cancelled',
-            'edit_notes'            => 'nullable|string',
-            'edit_buyer_name'       => 'nullable|string|max:255',
-            'edit_contract_date'    => 'nullable|date',
+            'edit_tahap'             => 'nullable|in:' . implode(',', Unit::TAHAP_OPTIONS),
+            'edit_cluster_id'        => 'required|exists:clusters,id',
+            'edit_block'             => 'required|string|max:10',
+            'edit_unit_number'       => 'required|string|max:10',
+            'edit_house_type'        => 'nullable|string|max:50',
+            'edit_luas_bangunan'     => 'nullable|integer|min:1',
+            'edit_luas_tanah'        => 'required|integer|min:1',
+            'edit_payment_type'      => 'nullable|in:Cash Keras,KPR,Cash Bertahap',
+            'edit_harga_penjualan'   => 'nullable|integer|min:1',
+            'edit_down_payment'      => 'nullable|integer|min:0',
+            'edit_max_installments'  => 'nullable|integer|min:1|max:360',
+            'edit_status'            => 'required|in:active,settled,land_cleared,unpaid,cancelled',
+            'edit_notes'             => 'nullable|string',
+            'edit_buyer_name'        => 'nullable|string|max:255',
+            'edit_contract_date'     => 'nullable|date',
         ], [], [
-            'edit_cluster_id'       => 'Cluster',
-            'edit_block'            => 'Block',
-            'edit_unit_number'      => 'Unit Number',
-            'edit_house_type'       => 'House Type',
-            'edit_luas_bangunan'    => 'Luas Bangunan',
-            'edit_luas_tanah'       => 'Luas Tanah',
-            'edit_payment_type'     => 'Payment Type',
-            'edit_harga_penjualan'  => 'Harga Penjualan',
-            'edit_down_payment'     => 'Down Payment',
-            'edit_max_installments' => 'Max Installments',
+            'edit_tahap'             => 'Tahap',
+            'edit_cluster_id'        => 'Cluster',
+            'edit_block'             => 'Block',
+            'edit_unit_number'       => 'Unit Number',
+            'edit_house_type'        => 'House Type',
+            'edit_luas_bangunan'     => 'Luas Bangunan',
+            'edit_luas_tanah'        => 'Luas Tanah',
+            'edit_payment_type'      => 'Payment Type',
+            'edit_harga_penjualan'   => 'Harga Penjualan',
+            'edit_down_payment'      => 'Down Payment',
+            'edit_max_installments'  => 'Max Installments',
         ]);
 
         $unit = Unit::findOrFail($this->editingUnitId);
 
-        $angsuran = $this->calcInstallment(
-            (int) $validated['edit_harga_penjualan'],
-            (int) $validated['edit_down_payment'],
-            (int) $validated['edit_max_installments'],
+        $angsuran = $this->calcInstallmentOrNull(
+            $validated['edit_harga_penjualan']  !== null ? (int) $validated['edit_harga_penjualan']  : null,
+            $validated['edit_down_payment']     !== null ? (int) $validated['edit_down_payment']     : 0,
+            $validated['edit_max_installments'] !== null ? (int) $validated['edit_max_installments'] : null,
         );
 
         $unit->update([
+            'tahap'              => $validated['edit_tahap'] ?: null,
             'cluster_id'         => $validated['edit_cluster_id'],
             'block'              => strtoupper(trim($validated['edit_block'])),
             'unit_number'        => trim($validated['edit_unit_number']),
-            'house_type'         => strtoupper(trim($validated['edit_house_type'])),
-            'luas_bangunan'      => (int) $validated['edit_luas_bangunan'],
+            'house_type'         => $validated['edit_house_type'] ? strtoupper(trim($validated['edit_house_type'])) : null,
+            'luas_bangunan'      => $validated['edit_luas_bangunan'] !== null ? (int) $validated['edit_luas_bangunan'] : null,
             'luas_tanah'         => (int) $validated['edit_luas_tanah'],
-            'payment_type'       => $validated['edit_payment_type'],
-            'harga_penjualan'    => (int) $validated['edit_harga_penjualan'],
-            'down_payment'       => (int) $validated['edit_down_payment'],
+            'payment_type'       => $validated['edit_payment_type'] ?: null,
+            'harga_penjualan'    => $validated['edit_harga_penjualan']  !== null ? (int) $validated['edit_harga_penjualan']  : null,
+            'down_payment'       => $validated['edit_down_payment']     !== null ? (int) $validated['edit_down_payment']     : null,
             'angsuran_per_bulan' => $angsuran,
-            'max_installments'   => (int) $validated['edit_max_installments'],
+            'max_installments'   => $validated['edit_max_installments'] !== null ? (int) $validated['edit_max_installments'] : null,
             'status'             => $validated['edit_status'],
             'notes'              => $validated['edit_notes'] ?: null,
         ]);
@@ -320,6 +352,7 @@ class ReconciliationTable extends Component
         $clusters = Cluster::orderBy('name')->get();
 
         $units = Unit::with(['cluster', 'activeBuyer', 'payments'])
+            ->when($this->filterTahap,   fn($q) => $q->where('tahap', $this->filterTahap))
             ->when($this->filterCluster, fn($q) => $q->where('cluster_id', $this->filterCluster))
             ->when($this->filterStatus,  fn($q) => $q->where('status', $this->filterStatus))
             ->when($this->filterPayType, fn($q) => $q->where('payment_type', $this->filterPayType))
@@ -339,29 +372,41 @@ class ReconciliationTable extends Component
             ->paginate(20);
 
         return view('livewire.reconciliation-table', [
-            'clusters' => $clusters,
-            'units'    => $units,
+            'clusters'     => $clusters,
+            'units'        => $units,
+            'tahapOptions' => Unit::TAHAP_OPTIONS,
         ]);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    private function calcInstallment(int $harga, int $dp, int $count): int
+    /**
+     * Computes angsuran_per_bulan only when BOTH harga and maxInstallments
+     * are present. Returns null otherwise — a partially-filled unit simply
+     * has no installment plan yet, which is valid now that these fields
+     * are optional.
+     */
+    private function calcInstallmentOrNull(?int $harga, ?int $dp, ?int $count): ?int
     {
-        return $count > 0 ? (int) round(($harga - $dp) / $count) : 0;
+        if ($harga === null || $count === null || $count <= 0) {
+            return null;
+        }
+
+        return (int) round(($harga - ($dp ?? 0)) / $count);
     }
 
     private function resetAddForm(): void
     {
+        $this->add_tahap            = '';
         $this->add_cluster_id       = '';
         $this->add_block            = '';
         $this->add_unit_number      = '';
         $this->add_house_type       = '';
         $this->add_luas_bangunan    = '';
         $this->add_luas_tanah       = '';
-        $this->add_payment_type     = 'Cash Bertahap';
+        $this->add_payment_type     = '';
         $this->add_harga_penjualan  = '';
-        $this->add_down_payment     = '0';
+        $this->add_down_payment     = '';
         $this->add_max_installments = '';
         $this->add_buyer_name       = '';
         $this->add_contract_date    = '';

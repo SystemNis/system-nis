@@ -157,13 +157,28 @@
 
     {{-- ── Flash Messages ───────────────────────────────────────────────── --}}
     @if (session('success'))
-        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 6000)"
              x-transition:leave="transition ease-in duration-300"
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-2"
-             class="fixed top-16 right-4 z-50 bg-emerald-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-sm">
-            <span class="text-base">✅</span>
-            {{ session('success') }}
+             class="fixed top-16 right-4 z-50 bg-emerald-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg flex items-start gap-2 max-w-md">
+            <span class="text-base flex-shrink-0">✅</span>
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+
+    @if ($errors->any())
+        <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 10000)"
+             x-transition:leave="transition ease-in duration-300"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 -translate-y-2"
+             class="fixed top-16 right-4 z-50 bg-rose-600 text-white text-sm font-medium px-4 py-3 rounded-lg shadow-lg flex items-start gap-2 max-w-md">
+            <span class="text-base flex-shrink-0">❌</span>
+            <div>
+                @foreach ($errors->all() as $error)
+                    <p>{{ $error }}</p>
+                @endforeach
+            </div>
         </div>
     @endif
 

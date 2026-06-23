@@ -61,6 +61,17 @@ class PaymentService
      */
     public function record(Unit $unit, Buyer $buyer, array $data): PaymentResult
     {
+        // ── 0. Validate the unit has a complete installment plan ──────────
+        // angsuran_per_bulan and max_installments are both optional fields
+        // (a unit can be registered with just cluster/block/unit/LT). A
+        // payment cannot be audited against a target that doesn't exist yet.
+        if ($unit->angsuran_per_bulan === null || $unit->max_installments === null) {
+            throw new \InvalidArgumentException(
+                "Unit {$unit->unit_label} has no installment plan yet — "
+                . "set Harga Penjualan and Max Installments before recording payments."
+            );
+        }
+
         // ── 1. Validate slot ──────────────────────────────────────────────
         $slot = (int) $data['installment_number'];
 
@@ -215,6 +226,15 @@ class PaymentService
         // Always reload fresh from DB
         $unit->refresh();
 
+        // Defensive guard: if the unit's installment plan was cleared after
+        // payments were already recorded (e.g. edited back to blank via
+        // Reconciliation), there's no valid target to recompute against.
+        // This should be rare in practice, but null-coercion in the loop
+        // below would otherwise silently produce wrong numbers.
+        if ($unit->angsuran_per_bulan === null || $unit->max_installments === null) {
+            return;
+        }
+
         $kavlingValue   = $this->kavlingValue($unit->luas_tanah);
         $targetAmount   = $unit->angsuran_per_bulan;
         $runningCumNis  = 0;
@@ -295,10 +315,14 @@ class PaymentService
         // Index payments by installment_number for O(1) slot lookup
         $paymentsBySlot = $payments->keyBy('installment_number');
 
-        // Build the full ledger: slots 1 .. max_installments
-        // Each entry: Payment model (if paid) or null (if not yet paid)
+        // Build the full ledger: slots 1 .. max_installments.
+        // max_installments is now OPTIONAL — a freshly registered unit may
+        // not have an installment plan defined yet, in which case there
+        // are simply no slots to show (empty ledger, not an error).
+        $maxInstallments = $unit->max_installments ?? 0;
+
         $ledgerSlots = [];
-        for ($i = 1; $i <= $unit->max_installments; $i++) {
+        for ($i = 1; $i <= $maxInstallments; $i++) {
             $ledgerSlots[$i] = $paymentsBySlot->get($i); // null if not paid
         }
 
@@ -306,7 +330,13 @@ class PaymentService
         $kavlingValue    = $this->kavlingValue($unit->luas_tanah);
         $cumulativeNis   = (int) $payments->sum('capped_nis_share');
         $totalPenerimaan = (int) $payments->sum('actual_amount');
-        $sisaPenerimaan  = max(0, $unit->harga_penjualan - $unit->down_payment - $totalPenerimaan);
+
+        // sisaPenerimaan needs a contract price to measure against — if
+        // harga_penjualan hasn't been set yet, there's no balance to report.
+        $sisaPenerimaan = $unit->harga_penjualan !== null
+            ? max(0, $unit->harga_penjualan - (int) $unit->down_payment - $totalPenerimaan)
+            : 0;
+
         $remainingHeadroom = $this->remainingKavlingHeadroom($kavlingValue, $cumulativeNis);
         $isLandCleared   = $this->isLandCleared($kavlingValue, $cumulativeNis);
 
@@ -339,7 +369,7 @@ class PaymentService
             remainingHeadroom:    $remainingHeadroom,
             isLandCleared:        $isLandCleared,
             paidCount:            $paidCount,
-            remainingCount:       max(0, $unit->max_installments - $paidCount),
+            remainingCount:       max(0, $maxInstallments - $paidCount),
             correctCount:         $correctCount,
             underpayCount:        $underpayCount,
             overpayCount:         $overpayCount,

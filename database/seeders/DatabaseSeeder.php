@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
         // Harga = 1,000,000,000 | DP = 50,000,000
         // CB (10 installments) → angsuran = (1,000,000,000 - 50,000,000) / 10 = 95,000,000 ≈ 100,000,000
         $unitA0 = Unit::create([
+            'tahap'              => 'Tahap 1',
             'cluster_id'         => $assher->id,
             'block'              => 'A',
             'unit_number'        => '0',
@@ -135,6 +136,7 @@ class DatabaseSeeder extends Seeder
         // ── A few more units for the dashboard KPIs ───────────────────────
 
         $unitA1 = Unit::create([
+            'tahap'              => 'Tahap 1',
             'cluster_id'         => $assher->id,
             'block'              => 'A',
             'unit_number'        => '1',
@@ -150,6 +152,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $unitM1 = Unit::create([
+            'tahap'              => 'Tahap 2',
             'cluster_id'         => $meridian->id,
             'block'              => 'M',
             'unit_number'        => '1',
@@ -169,6 +172,20 @@ class DatabaseSeeder extends Seeder
             'name'          => 'SARI DEWI',
             'contract_date' => Carbon::parse('2024-01-15'),
             'is_active'     => true,
+        ]);
+
+        // ── Minimal-data unit ──────────────────────────────────────────────
+        // Demonstrates the new "everything optional except the four hard
+        // identity fields" rule — only cluster, block, unit_number, and
+        // luas_tanah are provided. This is the shape bulk-imported rows
+        // will commonly take before being filled in progressively.
+        Unit::create([
+            'tahap'       => 'Tahap 3',
+            'cluster_id'  => $meridian->id,
+            'block'       => 'M',
+            'unit_number' => '2',
+            'luas_tanah'  => 80,
+            'status'      => 'unpaid',
         ]);
     }
 }

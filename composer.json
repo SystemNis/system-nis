@@ -10,10 +10,10 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
-        "ext-gd": "*",
-        "ext-zip": "*",
         "ext-bcmath": "*",
+        "ext-gd": "*",
         "ext-mbstring": "*",
+        "ext-zip": "*",
         "doctrine/dbal": "*",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",

@@ -61,7 +61,9 @@ class ManagePayments extends Component
 
     /**
      * Returns the next unrecorded installment slot number for this unit,
-     * or null if every slot 1..max_installments is already paid.
+     * or null if every slot 1..max_installments is already paid, OR if
+     * the unit has no installment plan defined yet (max_installments is
+     * null — now possible since Financial Terms are optional at creation).
      *
      * Exposed publicly so the "W" keyboard shortcut (handled in Alpine on
      * the dashboard) can call it via $wire.nextEmptySlot() and immediately
@@ -69,6 +71,10 @@ class ManagePayments extends Component
      */
     public function nextEmptySlot(): ?int
     {
+        if ($this->unit->max_installments === null) {
+            return null;
+        }
+
         $paidSlots = Payment::where('unit_id', $this->unit->id)
             ->whereNull('deleted_at')
             ->pluck('installment_number')
@@ -83,10 +89,29 @@ class ManagePayments extends Component
         return null; // fully paid
     }
 
+    /**
+     * Whether this unit has a complete enough financial plan to record
+     * payments against. Required: angsuran_per_bulan (the per-installment
+     * target) and max_installments (the slot count ceiling).
+     */
+    public function hasInstallmentPlan(): bool
+    {
+        return $this->unit->angsuran_per_bulan !== null
+            && $this->unit->max_installments !== null;
+    }
+
     // ── ADD ────────────────────────────────────────────────────────────────
 
     public function openAddPaymentModal(?int $slotNumber = null): void
     {
+        if (!$this->hasInstallmentPlan()) {
+            session()->flash('error',
+                "Unit {$this->unit->unit_label} has no installment plan yet. "
+                . "Set Harga Penjualan and Max Installments in Reconciliation first."
+            );
+            return;
+        }
+
         $this->resetAddPaymentForm();
 
         if ($slotNumber) {
@@ -118,6 +143,11 @@ class ManagePayments extends Component
 
     public function savePayment(PaymentService $service): void
     {
+        if (!$this->hasInstallmentPlan()) {
+            $this->addError('add_actual_amount', 'This unit has no installment plan defined yet.');
+            return;
+        }
+
         $validated = $this->validate([
             'add_installment_number' => 'required|integer|min:1|max:' . $this->unit->max_installments,
             'add_actual_amount'      => 'required|integer|min:1',

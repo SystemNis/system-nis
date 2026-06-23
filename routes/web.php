@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\ReconciliationExportController;
+use App\Http\Controllers\ReconciliationImportController;
 use App\Http\Controllers\HistoryLogController;
 
 // Root → Dashboard
@@ -29,6 +30,10 @@ Route::delete('/units/{unit}', [ReconciliationController::class, 'destroy'])
 // Export Master Reconciliation Sheet to .xlsx (respects current page filters)
 Route::get('/reconciliation/export', [ReconciliationExportController::class, 'export'])
     ->name('reconciliation.export');
+
+// Import units from .xlsx
+Route::post('/reconciliation/import', [ReconciliationImportController::class, 'import'])
+    ->name('reconciliation.import');
 
 // PAGE 3: History Log (soft-deleted records)
 Route::get('/history', [HistoryLogController::class, 'index'])
