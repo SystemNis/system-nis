@@ -207,43 +207,90 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('moneyInput', (livewireValue) => ({
-                // Two-way bound to the Livewire property (the real Rupiah integer)
                 real: livewireValue,
-                // JT toggle state — NOT persisted, resets per page load (by design)
                 jt: false,
-                // What the user sees/types in the input when JT is on
                 display: '',
 
                 init() {
-                    // Keep `display` in sync if `real` changes from outside
-                    // (e.g. modal reopened with a pre-filled value)
-                    this.$watch('real', (val) => {
-                        if (this.jt && val) {
-                            // Reflect the million-equivalent back into display
-                            // only if it's not actively being typed (avoid fighting the user)
+                    // Populate display from whatever real already holds
+                    // (covers the Edit modal case where real is pre-filled by Livewire)
+                    this._syncDisplayFromReal();
+
+                    // Keep display in sync if real is updated externally
+                    // (e.g. Livewire re-renders the component)
+                    this.$watch('real', () => {
+                        // Only sync when the user isn't actively typing
+                        // (checked via document.activeElement vs our input ref)
+                        if (document.activeElement !== this.$refs.moneyInputField) {
+                            this._syncDisplayFromReal();
                         }
                     });
                 },
 
-                toggleJt() {
-                    this.jt = !this.jt;
+                // Format a raw integer as Indonesian thousands: 1000000 → "1.000.000"
+                _format(n) {
+                    if (n === null || n === '' || isNaN(n)) return '';
+                    return Math.round(Number(n))
+                        .toLocaleString('id-ID');   // id-ID uses . as thousands separator
+                },
+
+                // Parse a display string back to a plain integer
+                // Strips dots (thousand seps) and replaces comma with dot for decimals
+                _parse(str) {
+                    if (str === '' || str === null) return '';
+                    const cleaned = str.replace(/\./g, '').replace(',', '.');
+                    const n = parseFloat(cleaned);
+                    return isNaN(n) ? '' : Math.round(n);
+                },
+
+                _syncDisplayFromReal() {
                     if (this.jt) {
-                        // Switching ON: pre-fill display with current value ÷ 1,000,000
-                        this.display = this.real ? String(this.real / 1000000) : '';
+                        this.display = this.real ? String(this.real / 1_000_000) : '';
                     } else {
-                        // Switching OFF: pre-fill display with the raw integer
-                        this.display = this.real ? String(this.real) : '';
+                        this.display = this.real ? this._format(this.real) : '';
                     }
                 },
 
+                toggleJt() {
+                    this.jt = !this.jt;
+                    this._syncDisplayFromReal();
+                },
+
                 onInput(value) {
-                    this.display = value;
-                    if (value === '' || isNaN(value)) {
-                        this.real = '';
+                    if (this.jt) {
+                        // JT mode: raw decimal input, no formatting
+                        this.display = value;
+                        const n = parseFloat(value);
+                        this.real = isNaN(n) ? '' : Math.round(n * 1_000_000);
                         return;
                     }
-                    const n = parseFloat(value);
-                    this.real = this.jt ? Math.round(n * 1000000) : Math.round(n);
+
+                    // Normal mode: strip existing formatting, reformat with separators
+                    const raw = value.replace(/\./g, '').replace(',', '.');
+                    const n   = parseFloat(raw);
+
+                    if (value === '' || isNaN(n)) {
+                        this.display = value;
+                        this.real    = '';
+                        return;
+                    }
+
+                    this.real = Math.round(n);
+
+                    // Reformat with thousand separators, preserving cursor position
+                    const formatted = this._format(this.real);
+
+                    // Only rewrite display if it actually changed (avoid cursor jump mid-type)
+                    if (this.display !== formatted) {
+                        this.display = formatted;
+                        // Restore cursor to end after reformat
+                        this.$nextTick(() => {
+                            const el = this.$refs.moneyInputField;
+                            if (el) {
+                                el.setSelectionRange(el.value.length, el.value.length);
+                            }
+                        });
+                    }
                 },
             }));
         });

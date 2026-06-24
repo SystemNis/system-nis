@@ -29,7 +29,7 @@
 @endphp
 
 <div x-data="moneyInput(@entangle($wireModel){{ $live ? '.live' : '' }})"
-     @if($autofocus) x-init="$nextTick(() => { $refs.moneyInputField.focus(); $refs.moneyInputField.select(); })" @endif>
+     @if($autofocus) x-init="$nextTick(() => { _syncDisplayFromReal(); $refs.moneyInputField.focus(); $refs.moneyInputField.select(); })" @endif>
     <div class="flex items-center justify-between mb-1">
         <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest">
             {{ $label }}
