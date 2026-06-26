@@ -75,10 +75,10 @@ class PaymentService
         // ── 1. Validate slot ──────────────────────────────────────────────
         $slot = (int) $data['installment_number'];
 
-        if ($slot < 1 || $slot > $unit->max_installments) {
+        if ($slot < 1 || $slot > $unit->total_slots) {
             throw new \InvalidArgumentException(
                 "Installment #{$slot} is out of range for unit {$unit->unit_label} "
-                . "(max: {$unit->max_installments})."
+                . "(max: {$unit->total_slots})."
             );
         }
 
@@ -131,6 +131,7 @@ class PaymentService
                 'unit_id'                      => $unit->id,
                 'buyer_id'                     => $buyer->id,
                 'installment_number'           => $slot,
+                'slot_type'                    => $data['slot_type'] ?? 'regular',
                 'payment_date'                 => $data['payment_date'],
                 'due_date'                     => $data['due_date'] ?? null,
                 'target_amount'                => $targetAmount,
@@ -319,7 +320,7 @@ class PaymentService
         // max_installments is now OPTIONAL — a freshly registered unit may
         // not have an installment plan defined yet, in which case there
         // are simply no slots to show (empty ledger, not an error).
-        $maxInstallments = $unit->max_installments ?? 0;
+        $maxInstallments = $unit->total_slots ?? 0;
 
         $ledgerSlots = [];
         for ($i = 1; $i <= $maxInstallments; $i++) {

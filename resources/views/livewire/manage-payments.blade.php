@@ -22,16 +22,41 @@
     <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 rounded-t-2xl">
         <div>
             <h3 class="font-bold text-[#0F1F3D]" style="font-family:'Plus Jakarta Sans',sans-serif">ANGSURAN</h3>
-            <p class="text-slate-400 text-xs">
-                {{ $summary->paidCount }} of {{ $summary->unit->max_installments }} installments recorded
+            @if ($summary->unit->max_installments !== null)
+                <p class="text-slate-400 text-xs">
+                    {{ $summary->paidCount }} of {{ $summary->unit->total_slots }} slots recorded
+                    @if ($summary->unit->payment_type === 'KPR')
+                        <span class="ml-1 text-[10px] text-purple-600 font-semibold">({{ $summary->unit->max_installments }} + 1 KPR slot)</span>
+                    @endif
+                </p>
+            @else
+                <p class="text-amber-600 text-xs font-medium">No installment plan set yet</p>
+            @endif
+        </div>
+        @if ($summary->unit->max_installments !== null)
+            <button wire:click="openAddPaymentModal()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F1F3D] hover:bg-[#1a3560]
+                           text-white text-xs font-semibold rounded-lg shadow transition-colors">
+                <span class="text-amber-400">＋</span> Record Payment
+            </button>
+        @else
+            <a href="{{ route('reconciliation.index') }}"
+               class="flex items-center gap-1.5 px-3 py-1.5 bg-white border-2 border-amber-300
+                      text-amber-700 hover:bg-amber-50 text-xs font-semibold rounded-lg transition-colors">
+                Set Harga &amp; Installments →
+            </a>
+        @endif
+    </div>
+
+    @if ($summary->unit->max_installments === null)
+        <div class="px-6 py-10 text-center">
+            <div class="text-3xl mb-2">📋</div>
+            <p class="text-slate-500 font-medium text-sm">No installment plan defined</p>
+            <p class="text-slate-400 text-xs mt-1">
+                Set Harga Penjualan and Max Installments for this unit in Reconciliation before recording payments.
             </p>
         </div>
-        <button wire:click="openAddPaymentModal()"
-                class="flex items-center gap-1.5 px-3 py-1.5 bg-[#0F1F3D] hover:bg-[#1a3560]
-                       text-white text-xs font-semibold rounded-lg shadow transition-colors">
-            <span class="text-amber-400">＋</span> Record Payment
-        </button>
-    </div>
+    @endif
 
     {{-- Ledger rows --}}
     <div class="divide-y divide-slate-50">
@@ -46,16 +71,19 @@
 
                     {{-- Col 1: Slot badge --}}
                     @php
-                        $slotRing = match($payment->payment_status) {
-                            'correct'  => 'bg-emerald-100 text-emerald-700 ring-emerald-200',
-                            'underpay' => 'bg-rose-100 text-rose-700 ring-rose-200',
-                            'overpay'  => 'bg-amber-100 text-amber-700 ring-amber-200',
-                            default    => 'bg-slate-100 text-slate-500 ring-slate-200',
-                        };
+                        $isKpr    = $payment->is_kpr_slot;
+                        $slotRing = $isKpr ? 'bg-purple-100 text-purple-700 ring-purple-200'
+                            : match($payment->payment_status) {
+                                'correct'  => 'bg-emerald-100 text-emerald-700 ring-emerald-200',
+                                'underpay' => 'bg-rose-100 text-rose-700 ring-rose-200',
+                                'overpay'  => 'bg-amber-100 text-amber-700 ring-amber-200',
+                                default    => 'bg-slate-100 text-slate-500 ring-slate-200',
+                            };
                     @endphp
                     <div class="w-8 h-8 rounded-full ring-2 flex items-center justify-center
-                                flex-shrink-0 text-[11px] font-bold mt-0.5 {{ $slotRing }}">
-                        {{ $slot }}
+                                flex-shrink-0 font-bold mt-0.5 {{ $slotRing }}
+                                {{ $isKpr ? 'text-[9px]' : 'text-[11px]' }}">
+                        {{ $isKpr ? 'KPR' : $slot }}
                     </div>
 
                     {{-- Col 2: All text content --}}
@@ -158,21 +186,44 @@
 
             @else
                 {{-- ── EMPTY SLOT — fully clickable, always visible "+ Record" ── --}}
-                <button wire:click="openAddPaymentModal({{ $slot }})"
-                        class="w-full flex items-center gap-4 text-left hover:bg-slate-50 rounded-lg
-                               -mx-2 px-2 py-0.5 transition-colors cursor-pointer">
-                    <div class="w-8 h-8 rounded-full ring-2 ring-slate-100 bg-slate-50
-                                flex items-center justify-center flex-shrink-0
-                                text-[11px] font-bold text-slate-300">
-                        {{ $slot }}
+                @php
+                    // The KPR extra slot is the last slot (max_installments + 1)
+                    $isKprSlot = $summary->unit->payment_type === 'KPR'
+                        && $slot === $summary->unit->total_slots;
+                @endphp
+                @if ($isKprSlot)
+                    {{-- KPR bank slot — special purple button --}}
+                    <div class="flex items-center gap-4">
+                        <div class="w-8 h-8 rounded-full ring-2 ring-purple-100 bg-purple-50
+                                    flex items-center justify-center flex-shrink-0
+                                    text-[9px] font-bold text-purple-300">
+                            KPR
+                        </div>
+                        <span class="text-slate-300 text-sm font-medium">KPR bank slot — not yet recorded</span>
+                        <button wire:click="openKprSlot({{ $slot }})"
+                                class="ml-auto flex items-center gap-1 text-[11px] font-semibold
+                                       text-purple-700 bg-purple-50 border border-purple-200 rounded-lg
+                                       px-2.5 py-1 hover:bg-purple-100 transition-colors">
+                            <span class="text-base leading-none">＋</span> Record KPR
+                        </button>
                     </div>
-                    <span class="text-slate-300 text-sm font-medium">Not yet recorded</span>
-                    <span class="ml-auto flex items-center gap-1 text-[11px] font-semibold
-                                 text-slate-400 bg-white border border-slate-200 rounded-lg
-                                 px-2.5 py-1 hover:border-[#0F1F3D] hover:text-[#0F1F3D] transition-colors">
-                        <span class="text-amber-500 text-sm leading-none">＋</span> Record
-                    </span>
-                </button>
+                @else
+                    <button wire:click="openAddPaymentModal({{ $slot }})"
+                            class="w-full flex items-center gap-4 text-left hover:bg-slate-50 rounded-lg
+                                   -mx-2 px-2 py-0.5 transition-colors cursor-pointer">
+                        <div class="w-8 h-8 rounded-full ring-2 ring-slate-100 bg-slate-50
+                                    flex items-center justify-center flex-shrink-0
+                                    text-[11px] font-bold text-slate-300">
+                            {{ $slot }}
+                        </div>
+                        <span class="text-slate-300 text-sm font-medium">Not yet recorded</span>
+                        <span class="ml-auto flex items-center gap-1 text-[11px] font-semibold
+                                     text-slate-400 bg-white border border-slate-200 rounded-lg
+                                     px-2.5 py-1 hover:border-[#0F1F3D] hover:text-[#0F1F3D] transition-colors">
+                            <span class="text-amber-500 text-sm leading-none">＋</span> Record
+                        </span>
+                    </button>
+                @endif
             @endif
 
         </div>
@@ -255,15 +306,23 @@
                 </span>
             </div>
 
+            {{-- KPR slot indicator --}}
+            @if ($add_slot_type === 'kpr')
+            <div class="bg-purple-50 border border-purple-200 rounded-lg px-4 py-2.5 flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-purple-100 ring-2 ring-purple-200 flex items-center justify-center text-[9px] font-bold text-purple-700 flex-shrink-0">KPR</div>
+                <div class="text-xs text-purple-800 font-semibold">Recording as KPR bank disbursement slot</div>
+            </div>
+            @endif
+
             <div>
                 <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-1">
-                    Installment Number
+                    @if ($add_slot_type === 'kpr') KPR Slot @else Installment Number @endif
                     @if ($add_installment_number)
                         <span class="text-emerald-600 font-normal normal-case tracking-normal">— slot selected</span>
                     @endif
                 </label>
                 <input wire:model="add_installment_number"
-                       type="number" min="1" max="{{ $summary->unit->max_installments }}"
+                       type="number" min="1" max="{{ $summary->unit->total_slots }}"
                        placeholder="e.g. 5"
                        @if($add_installment_number) readonly @endif
                        class="form-input font-num {{ $add_installment_number ? 'bg-slate-50 text-slate-500 cursor-not-allowed' : '' }}">

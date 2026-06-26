@@ -389,14 +389,30 @@
                         @if ($summary->unit->payment_type)
                             <p class="font-semibold text-slate-800 text-sm mt-0.5">
                                 {{ $summary->unit->payment_type }}
-                                @if ($summary->unit->payment_type !== 'Cash Keras' && $summary->unit->max_installments !== null)({{ $summary->unit->max_installments }}x)@endif
+                                @if ($summary->unit->payment_type !== 'Cash Keras' && $summary->unit->max_installments !== null)
+                                    ({{ $summary->unit->max_installments }}x
+                                    @if ($summary->unit->payment_type === 'KPR') + 1 KPR @endif)
+                                @endif
                             </p>
                         @else
                             <p class="text-slate-300 text-sm mt-0.5">Not set yet</p>
                         @endif
                     </div>
                     <div>
-                        <p class="label-xs">Down Payment</p>
+                        <p class="label-xs">Uang Tanda Jadi</p>
+                        @if ($summary->unit->uang_tanda_jadi !== null)
+                            <p class="val-num">Rp {{ number_format($summary->unit->uang_tanda_jadi, 0, ',', '.') }}</p>
+                        @else
+                            <p class="text-slate-300 text-sm mt-0.5">—</p>
+                        @endif
+                    </div>
+                    <div>
+                        @if ($summary->unit->payment_type === 'KPR')
+                            <p class="label-xs">Down Payment (DP)</p>
+                            <p class="text-[10px] text-slate-400">Buyer pays DP − UTJ in instalments</p>
+                        @else
+                            <p class="label-xs">Down Payment</p>
+                        @endif
                         @if ($summary->unit->down_payment !== null)
                             <p class="val-num">Rp {{ number_format($summary->unit->down_payment, 0, ',', '.') }}</p>
                         @else
@@ -427,11 +443,7 @@
                             Rp {{ number_format($summary->remainingHeadroom, 0, ',', '.') }}
                         </p>
                         <p class="text-[10px] text-slate-400">
-                            @if ($summary->remainingHeadroom === 0)
-                                ✦ Fully cleared
-                            @else
-                                NIS share still owed
-                            @endif
+                            @if ($summary->remainingHeadroom === 0) ✦ Fully cleared @else NIS share still owed @endif
                         </p>
                     </div>
                     <div>
@@ -439,7 +451,15 @@
                         <p class="val-num">Rp {{ number_format($summary->totalPenerimaan, 0, ',', '.') }}</p>
                     </div>
                     <div>
-                        <p class="label-xs">Sisa Angsuran</p>
+                        @if ($summary->unit->payment_type === 'KPR')
+                            <p class="label-xs">Sisa DP</p>
+                            <p class="text-[10px] text-slate-400">(DP − UTJ) − paid so far</p>
+                        @elseif ($summary->unit->payment_type === 'Cash Bertahap')
+                            <p class="label-xs">Sisa Angsuran</p>
+                            <p class="text-[10px] text-slate-400">(Harga − UTJ) − paid so far</p>
+                        @else
+                            <p class="label-xs">Sisa Angsuran</p>
+                        @endif
                         <p class="font-num font-semibold text-sm mt-0.5 {{ $summary->sisaPenerimaan === 0 ? 'text-emerald-700' : 'text-slate-800' }}">
                             Rp {{ number_format($summary->sisaPenerimaan, 0, ',', '.') }}
                         </p>

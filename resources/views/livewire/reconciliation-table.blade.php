@@ -528,30 +528,35 @@
                     </div>
                     <div>
                         @include('livewire.partials.money-input', [
+                            'wireModel'   => 'add_uang_tanda_jadi',
+                            'label'       => 'Uang Tanda Jadi (opt., Rp)',
+                            'placeholder' => '0',
+                            'live'        => true,
+                        ])
+                    </div>
+                    <div>
+                        @include('livewire.partials.money-input', [
                             'wireModel'   => 'add_down_payment',
                             'label'       => 'Down Payment (opt., Rp)',
                             'placeholder' => '50000000',
                             'live'        => true,
                         ])
                     </div>
+                    <div>
+                        @include('livewire.partials.money-input', [
+                            'wireModel'   => 'add_angsuran_per_bulan',
+                            'label'       => 'Angsuran Per Bulan (opt., Rp)',
+                            'placeholder' => '100000000',
+                            'live'        => true,
+                        ])
+                    </div>
                     @include('livewire.partials.form-field', ['label'=>'Max Installments (opt.)', 'errorKey'=>'add_max_installments','inputHtml'=>'<input wire:model="add_max_installments" type="number" min="1" max="360" placeholder="10" class="form-input font-num">'])
-                    @include('livewire.partials.form-field', ['label'=>'Initial Status',       'errorKey'=>'add_status',          'inputHtml'=>'
+                    @include('livewire.partials.form-field', ['label'=>'Initial Status', 'errorKey'=>'add_status', 'inputHtml'=>'
                         <select wire:model="add_status" class="form-input">
                             <option value="unpaid">Unpaid</option>
                             <option value="active">Active</option>
                         </select>'])
                 </div>
-
-                {{-- Angsuran preview --}}
-                @if ($add_harga_penjualan && $add_max_installments && (int)$add_max_installments > 0)
-                <div class="mt-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-                    <div class="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Angsuran Per Bulan Preview</div>
-                    <div class="font-num font-bold text-[#0F1F3D] text-sm mt-0.5">
-                        Rp {{ number_format((int)round(((int)$add_harga_penjualan - (int)$add_down_payment) / (int)$add_max_installments), 0, ',', '.') }}
-                    </div>
-                    <div class="text-[10px] text-slate-400">NIS 30% = Rp {{ number_format((int)round((((int)$add_harga_penjualan - (int)$add_down_payment) / (int)$add_max_installments) * 0.3), 0, ',', '.') }}/bln</div>
-                </div>
-                @endif
             </div>
 
             {{-- Section: Buyer --}}
@@ -666,9 +671,30 @@
                     </div>
                     <div>
                         @include('livewire.partials.money-input', [
+                            'wireModel' => 'edit_uang_tanda_jadi',
+                            'label'     => 'Uang Tanda Jadi (opt., Rp)',
+                        ])
+                    </div>
+                    <div>
+                        @include('livewire.partials.money-input', [
                             'wireModel' => 'edit_down_payment',
                             'label'     => 'Down Payment (opt., Rp)',
                         ])
+                    </div>
+                    <div>
+                        @include('livewire.partials.money-input', [
+                            'wireModel' => 'edit_angsuran_per_bulan',
+                            'label'     => 'Angsuran Per Bulan (opt., Rp)',
+                        ])
+                    </div>
+                    @include('livewire.partials.form-field', ['label'=>'Max Installments (opt.)', 'errorKey'=>'edit_max_installments','inputHtml'=>'<input wire:model="edit_max_installments" type="number" min="1" max="360" class="form-input font-num">'])
+                    @include('livewire.partials.form-field', ['label'=>'Status', 'errorKey'=>'edit_status', 'inputHtml'=>'
+                        <select wire:model="edit_status" class="form-input">
+                            <option value="active">Active</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="settled">Settled</option>
+                            <option value="land_cleared">Land Cleared</option>
+                            <option value="cancelled">Cancelled</option>
                     </div>
                     @include('livewire.partials.form-field', ['label'=>'Max Installments (opt.)', 'errorKey'=>'edit_max_installments','inputHtml'=>'<input wire:model="edit_max_installments" type="number" min="1" max="360" class="form-input font-num">'])
                     @include('livewire.partials.form-field', ['label'=>'Status',               'errorKey'=>'edit_status',          'inputHtml'=>'

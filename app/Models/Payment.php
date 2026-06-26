@@ -47,6 +47,11 @@ class Payment extends Model
         'land_cleared_on_this_payment'  => 'boolean',
     ];
 
+    public function getIsKprSlotAttribute(): bool
+    {
+        return ($this->slot_type ?? 'regular') === 'kpr';
+    }
+
     // ── Relationships ──────────────────────────────────────────────────────
 
     public function unit(): BelongsTo
